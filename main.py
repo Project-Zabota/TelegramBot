@@ -1,5 +1,8 @@
 import telebot
+import requests
+import json
 from telebot import types
+
 
 bot = telebot.TeleBot("6490766765:AAEo1jTAbJeQT3ikeJY1AXGUIu2orT93Nqg", parse_mode=None)
 
@@ -12,6 +15,11 @@ print('....')
 is_client = False
 is_backOff = False
 is_shop = False
+
+user_post = ''
+type_rec = ''
+sub_topic = ''
+request_description = ""
 
 
 @bot.message_handler(commands=['start'])
@@ -39,6 +47,7 @@ def start(message):
 @bot.callback_query_handler(func=lambda call: True)  # переход к типу запроса
 def callback_employee(call):
     global is_client, is_backOff, is_shop
+    global user_post, type_rec, sub_topic
     if call.data == "employee":  # call.data это callback_data, которую мы указали при объявлении кнопки
         markup = types.InlineKeyboardMarkup()
         button_shop = types.InlineKeyboardButton(text='магазин', callback_data='shop')
@@ -52,6 +61,7 @@ def callback_employee(call):
         is_shop = True
         mesg = bot.send_message(call.message.chat.id, 'В каком магазине вы работаете?')
         bot.register_next_step_handler(mesg, get_text)  # запрос на текст (переходим к блоку кода ниже)
+        # define_type(call.message.chat.id)
     elif call.data == "back_office":
         define_type(call.message.chat.id)
         is_backOff = True
@@ -69,7 +79,16 @@ def callback_employee(call):
         ]
         person = 'client' if is_client else 'shop' if is_shop else 'back_office'
         markup = createButtons(allNameButton_problems, person)
+        print(person)
+        user_post = person
+        type_rec = "problem"
         bot.send_message(call.message.chat.id, f'С чем возникла проблема?', parse_mode='HTML', reply_markup=markup)
+    else:
+        print(call.data) # проблема с...
+        sub_topic = call.data
+        mesg = bot.send_message(call.message.chat.id, f'Опишите, что случилось', parse_mode='HTML')
+        bot.register_next_step_handler(mesg, get_text_art) # get_text
+        # bot.send_message(call.message.chat.id, f'Ваш запрос принят в работу', parse_mode='HTML')
 
 
 def createButtons(allNameButton, person):
@@ -87,6 +106,15 @@ def get_text(message):
     define_type(message.chat.id)
 
 
+def get_text_art(message):
+    global request_description
+    request = message.text  # номер или адрес магазина
+    print(request)
+    bot.send_message(message.chat.id, f'Ваш запрос принят в работу', parse_mode='HTML')
+    request_description = request
+    send_to_server()
+
+
 def define_type(chat_id):
     markup = types.InlineKeyboardMarkup()
     button_problem = types.InlineKeyboardButton(text='есть проблема', callback_data='problem')
@@ -99,4 +127,45 @@ def define_type(chat_id):
     bot.send_message(chat_id, f'Чем могу помочь?', parse_mode='HTML', reply_markup=markup)
 
 
+def send_to_server():
+    data = {
+        "id": 5,#4,
+        "name":sub_topic,
+        "user": {
+            "name":first_name,
+            "phone": user_id
+        },
+        "messages":{
+            "sender": "CLIENT",
+            "name": user_id,
+            "text": request_description,
+            "date": "11-02-2023 21:30"
+        }
+    }
+    # data_json = json.dumps(data)
+    # payload = {'json_payload': data_json}
+    r = requests.post("http://localhost:3000/create", json=data)
+
+
 bot.polling(none_stop=True)  # чтобы программа не заканчивала работу
+
+
+
+
+    # "id": 1,
+    # "name": "Не работает оплата СБП",
+    # "user": {
+    #     "name": "",
+    #     "phone": "+79000000000"
+    # },
+    # "employee": {
+    #     "department": "CALLCENTER",
+    #     "name": "Иванов Иван Иванович"
+    # },
+    # "messages": [
+    #     {
+    #         "sender": "CLIENT",
+    #         "name": "+79000000000",
+    #         "text": "Здравствуйте, у меня не работает оплата по СБП в магазине",
+    #         "date": "11-02-2023 21:30"
+    #     },
