@@ -1,8 +1,8 @@
 import telebot
 import requests
-import json
 from telebot import types
-
+from threading import Thread
+from flask import Flask, request
 
 bot = telebot.TeleBot("6490766765:AAEo1jTAbJeQT3ikeJY1AXGUIu2orT93Nqg", parse_mode=None)
 
@@ -112,7 +112,8 @@ def get_text_art(message):
     print(request)
     bot.send_message(message.chat.id, f'Ваш запрос принят в работу', parse_mode='HTML')
     request_description = request
-    send_to_server()
+    # send_to_server()
+    user_by_ticket[1] = message.chat.id
 
 
 def define_type(chat_id):
@@ -147,12 +148,9 @@ def send_to_server():
     r = requests.post("http://localhost:3000/create", json=data)
 
 
-bot.polling(none_stop=True)  # чтобы программа не заканчивала работу
 
 
-
-
-    # "id": 1,
+# "id": 1,
     # "name": "Не работает оплата СБП",
     # "user": {
     #     "name": "",
@@ -169,3 +167,36 @@ bot.polling(none_stop=True)  # чтобы программа не заканчи
     #         "text": "Здравствуйте, у меня не работает оплата по СБП в магазине",
     #         "date": "11-02-2023 21:30"
     #     },
+
+
+# ------ zabota_client ---------
+# host_name = "localhost"
+# server_port = 8080
+
+
+user_by_ticket = {}
+server = Flask(__name__)
+
+
+@server.route("/update/", methods=['POST'])
+def processUpdate():
+    body = request.json
+    action = body['action']
+    ticket = body['ticket']
+    data = body['data']
+    if action == "NEW_MESSAGE":
+        bot.send_message(user_by_ticket[ticket], data['text'], parse_mode='HTML')
+
+    return ""
+
+
+def bot_polling():
+    bot.infinity_polling()
+
+
+Thread(target=bot_polling).start()
+
+server.run()
+
+
+
