@@ -136,16 +136,32 @@ def send_to_server():
             "name":first_name,
             "phone": user_id
         },
-        "messages":{
+        "messages": {
             "sender": "CLIENT",
             "name": user_id,
             "text": request_description,
             "date": "11-02-2023 21:30"
         }
     }
+
+    createTicket = {
+        "name": sub_topic,
+        "status": "status",
+        "type": "Problem",
+        "sender": "Client",
+        "priority": 1
+    }
+
     # data_json = json.dumps(data)
     # payload = {'json_payload': data_json}
-    r = requests.post("http://localhost:3000/create", json=data)
+    r = requests.post("http://localhost:5179/api/ticket", json=createTicket)
+    message = {
+        "sender": "Client",
+        "text": request_description,
+        "timestamp": "12.12.12",
+        "ticketId": r.text
+    }
+    r = requests.post("http://localhost:5179/api/ticket/message", json=addMessage)
 
 
 
