@@ -1,5 +1,6 @@
 import telebot
 import requests
+import json
 from telebot import types
 from threading import Thread
 from flask import Flask, request
@@ -112,8 +113,8 @@ def get_text_art(message):
     print(request)
     bot.send_message(message.chat.id, f'Ваш запрос принят в работу', parse_mode='HTML')
     request_description = request
-    # send_to_server()
-    user_by_ticket[1] = message.chat.id
+    send_to_server(message)
+
 
 
 def define_type(chat_id):
@@ -128,7 +129,7 @@ def define_type(chat_id):
     bot.send_message(chat_id, f'Чем могу помочь?', parse_mode='HTML', reply_markup=markup)
 
 
-def send_to_server():
+def send_to_server(message):
     data = {
         "id": 5,#4,
         "name":sub_topic,
@@ -155,13 +156,15 @@ def send_to_server():
     # data_json = json.dumps(data)
     # payload = {'json_payload': data_json}
     r = requests.post("http://localhost:5179/api/ticket", json=createTicket)
-    message = {
+    addMessage = {
         "sender": "Client",
         "text": request_description,
-        "timestamp": "12.12.12",
+        "timestamp": "05.12.23",
         "ticketId": r.text
     }
+    user_by_ticket[int(r.text)] = message.chat.id
     r = requests.post("http://localhost:5179/api/ticket/message", json=addMessage)
+
 
 
 
@@ -196,7 +199,7 @@ server = Flask(__name__)
 
 @server.route("/update/", methods=['POST'])
 def processUpdate():
-    body = request.json
+    body = json.loads(request.json)
     action = body['action']
     ticket = body['ticket']
     data = body['data']
@@ -213,6 +216,3 @@ def bot_polling():
 Thread(target=bot_polling).start()
 
 server.run()
-
-
-
