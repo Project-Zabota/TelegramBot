@@ -1,5 +1,6 @@
 import telebot
 import requests
+import datetime
 import json
 from telebot import types
 from threading import Thread
@@ -7,92 +8,90 @@ from flask import Flask, request
 
 bot = telebot.TeleBot("6490766765:AAEo1jTAbJeQT3ikeJY1AXGUIu2orT93Nqg", parse_mode=None)
 
-first_name = ''
-last_name = ''
-user_id = ''
-user_name = ''
 print('....')
 
-is_client = False
-is_backOff = False
-is_shop = False
 
 user_post = ''
 type_rec = ''
 sub_topic = ''
 request_description = ""
 
+ChatData = {}
+
+TYPE_PERSON_DEFAULT = 'client'
+TYPE_REQUEST_DEFAULT = 'problem'
+SUBTYPE_REQUEST_DEFAULT = 'els'
+
+
 
 @bot.message_handler(commands=['start'])
 def start(message):
-
-    global first_name, last_name, user_id, user_name
-    global is_client, is_backOff, is_shop
-    first_name = message.from_user.first_name
-    last_name = message.from_user.last_name
-    user_id = message.from_user.id
-    user_name = message.from_user.username
-    print(first_name, last_name, user_id, user_name)
-
-    is_client = False
-    is_backOff = False
-    is_shop = False
+    chat_id = message.chat.id
+    ChatData[chat_id] = {'userData': {'name': message.from_user.first_name,
+                                      'type_person': TYPE_PERSON_DEFAULT},
+                         'requestData': {'type_request': TYPE_REQUEST_DEFAULT,
+                                         'subtype_request': SUBTYPE_REQUEST_DEFAULT,
+                                         'request_text': None}}
+    print(ChatData)
 
     markup = types.InlineKeyboardMarkup()
-    button_client = types.InlineKeyboardButton(text='клиент', callback_data='client')
-    button_employee = types.InlineKeyboardButton(text='сотрудник "Жизньмарт"', callback_data='employee')
-    markup.add(button_client, button_employee)
+    markup.add(createButton('клиент', 'client'), createButton('сотрудник "Жизньмарт"', 'employee'))
     bot.send_message(message.chat.id, f'Здравствуйте, укажите кто вы', parse_mode='HTML', reply_markup=markup)
 
 
+def createButton(title, progName):
+    button = types.InlineKeyboardButton(text=title, callback_data=progName)
+    return button
+
+
+
 @bot.callback_query_handler(func=lambda call: True)  # переход к типу запроса
-def callback_employee(call):
-    global is_client, is_backOff, is_shop
+def callback(call):
+    chat_id = call.message.chat.id
     global user_post, type_rec, sub_topic
-    if call.data == "employee":  # call.data это callback_data, которую мы указали при объявлении кнопки
-        markup = types.InlineKeyboardMarkup()
-        button_shop = types.InlineKeyboardButton(text='магазин', callback_data='shop')
-        button_back_office = types.InlineKeyboardButton(text='бэк офис', callback_data='back_office')
-        markup.add(button_shop, button_back_office)
-        bot.send_message(call.message.chat.id, f'Уточните место работы', parse_mode='HTML', reply_markup=markup)
-    elif call.data == "client":
-        define_type(call.message.chat.id)
-        is_client = True
-    elif call.data == "shop":
-        is_shop = True
-        mesg = bot.send_message(call.message.chat.id, 'В каком магазине вы работаете?')
-        bot.register_next_step_handler(mesg, get_text)  # запрос на текст (переходим к блоку кода ниже)
-        # define_type(call.message.chat.id)
-    elif call.data == "back_office":
-        define_type(call.message.chat.id)
-        is_backOff = True
+
+    if call.data in ['employee', 'client', 'shop', 'back_office']:
+        ChatData[chat_id]['userData']['type_person'] = call.data
+        if call.data == "employee":  # call.data это callback_data, которую мы указали при объявлении кнопки
+            markup = types.InlineKeyboardMarkup()
+            markup.add(createButton('магазин', 'shop'), createButton('бэк офис', 'back_office'))
+            bot.send_message(call.message.chat.id, f'Уточните место работы', parse_mode='HTML', reply_markup=markup)
+        elif call.data == "shop":
+            mesg = bot.send_message(call.message.chat.id, 'В каком магазине вы работаете?')
+            bot.register_next_step_handler(mesg, get_text)  # запрос на текст (переходим к блоку кода ниже)
+        else:
+            define_type(call.message.chat.id)
+
+
     elif call.data == "problem":
         allNameButton_problems = [
-            (('с обслуживанием', 'service'), ('client', )),
-            (('с приложением', 'app'), ('client', 'back_office', 'shop')),
-            (('с сайтом', 'website'), ('client', 'back_office', 'shop')),
-            (('с оплатой', 'payment'), ('client', 'shop')),
-            (('с доставкой', 'delivery'), ('client', )),
-            (('с сервером', 'server'), ('back_office', )),
-            (('с оборудованием', 'equipment'), ('back_office', 'shop')),
-            (('с кассой', 'box_office'), ('shop', )),
-            (('другое', 'els'), ('client', 'back_office', 'shop'))
+            (('с обслуживанием', 'service'), ['client']),
+            (('с приложением', 'app'), ['client', 'back_office', 'shop']),
+            (('с сайтом', 'website'), ['client', 'back_office', 'shop']),
+            (('с оплатой', 'payment'), ['client', 'shop']),
+            (('с доставкой', 'delivery'), ['client']),
+            (('с сервером', 'server'), ['back_office']),
+            (('с оборудованием', 'equipment'), ['back_office', 'shop']),
+            (('с кассой', 'box_office'), ['shop']),
+            (('другое', 'els'), ['client', 'back_office', 'shop'])
         ]
-        person = 'client' if is_client else 'shop' if is_shop else 'back_office'
-        markup = createButtons(allNameButton_problems, person)
+        person = ChatData[chat_id]['userData']['type_person']
+        markup = createButtonsForType(allNameButton_problems, person)
         print(person)
         user_post = person
         type_rec = "problem"
+        ChatData[chat_id]['requestData']['type_request'] = call.data
         bot.send_message(call.message.chat.id, f'С чем возникла проблема?', parse_mode='HTML', reply_markup=markup)
     else:
         print(call.data) # проблема с...
+        ChatData[chat_id]['requestData']['subtype_request'] = call.data
         sub_topic = call.data
         mesg = bot.send_message(call.message.chat.id, f'Опишите, что случилось', parse_mode='HTML')
         bot.register_next_step_handler(mesg, get_text_art) # get_text
         # bot.send_message(call.message.chat.id, f'Ваш запрос принят в работу', parse_mode='HTML')
 
 
-def createButtons(allNameButton, person):
+def createButtonsForType(allNameButton, person):
     markup = types.InlineKeyboardMarkup()
     for button in allNameButton:
         if person in button[1]:
@@ -104,6 +103,7 @@ def createButtons(allNameButton, person):
 def get_text(message):
     request = message.text  # номер или адрес магазина
     print(request)
+    ChatData[message.chat.id]['requestData']['request_text'] = message.text
     define_type(message.chat.id)
 
 
@@ -113,8 +113,7 @@ def get_text_art(message):
     print(request)
     bot.send_message(message.chat.id, f'Ваш запрос принят в работу', parse_mode='HTML')
     request_description = request
-    send_to_server(message)
-
+    send_to_server(message.chat.id)
 
 
 def define_type(chat_id):
@@ -129,21 +128,23 @@ def define_type(chat_id):
     bot.send_message(chat_id, f'Чем могу помочь?', parse_mode='HTML', reply_markup=markup)
 
 
-def send_to_server(message):
+def send_to_server(chat_id):
     data = {
-        "id": 5,#4,
-        "name":sub_topic,
+        # "id": 5,#4,
+        "id": chat_id,
+        "name": ChatData[chat_id]['requestData']['subtype_request'],
         "user": {
-            "name":first_name,
-            "phone": user_id
+            "name": ChatData[chat_id]['userData']['name'],
+            "phone": chat_id
         },
         "messages": {
             "sender": "CLIENT",
-            "name": user_id,
-            "text": request_description,
-            "date": "11-02-2023 21:30"
+            "name": chat_id,
+            "text": ChatData[chat_id]['requestData']['request_text'],
+            "date": datetime.datetime.now().strftime("%d.%m.%Y %H:%M:%S")
         }
     }
+    del ChatData[chat_id] #удаляем данные после отправки
 
     createTicket = {
         "name": sub_topic,
@@ -155,16 +156,18 @@ def send_to_server(message):
 
     # data_json = json.dumps(data)
     # payload = {'json_payload': data_json}
-    r = requests.post("http://localhost:5179/api/ticket", json=createTicket)
+    r = requests.post("http://localhost:5179/api/ticket", json=createTicket) # создается тикет
     addMessage = {
         "sender": "Client",
         "text": request_description,
         "timestamp": "05.12.23",
         "ticketId": r.text
     }
-    user_by_ticket[int(r.text)] = message.chat.id
-    r = requests.post("http://localhost:5179/api/ticket/message", json=addMessage)
+    user_by_ticket[int(r.text)] = chat_id
+    r = requests.post("http://localhost:5179/api/ticket/message", json=addMessage)# добавляю сообщение в тикет
 
+
+# bot.polling(none_stop=True)  # чтобы программа не заканчивала работу
 
 
 
@@ -198,7 +201,7 @@ server = Flask(__name__)
 
 
 @server.route("/update/", methods=['POST'])
-def processUpdate():
+def processUpdate(): # localhost:5000
     body = json.loads(request.json)
     action = body['action']
     ticket = body['ticket']
