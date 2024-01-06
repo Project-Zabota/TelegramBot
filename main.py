@@ -185,6 +185,7 @@ def send_to_server(chat_id):
     user = ChatData[chat_id]
     createTicket = {
         "name": user['requestData']['request_text'],
+        "webhook": "http://localhost:5000/update",
         "type": 0, #user['requestData']['type_request'].upper(),
         "departament": departamentMapper[user['userData']['type_person']],
         "sender": {
