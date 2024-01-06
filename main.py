@@ -176,11 +176,21 @@ def send_to_server(chat_id):
     # }
     # del ChatData[chat_id] #удаляем данные после отправки
 
+    departamentMapper = {
+        'client': 2,
+        'shop': 1,
+        'back_office': 0
+    }
+
+    user = ChatData[chat_id]
     createTicket = {
-        "name": ChatData[chat_id]['requestData']['subtype_request'],
-        "status": "status",
-        "type":  ChatData[chat_id]['requestData']['type_request'],#"Problem",
-        "sender": ChatData[chat_id]['userData']['name'], #"Client",
+        "name": user['requestData']['request_text'],
+        "type": 0, #user['requestData']['type_request'].upper(),
+        "departament": departamentMapper[user['userData']['type_person']],
+        "sender": {
+            "name": user['userData']['name'],
+            "type": 0
+        },
         "priority": 1 #TODO автоматизировать (1 - высокий 0 - низкий)
     }
 
@@ -188,44 +198,21 @@ def send_to_server(chat_id):
     # payload = {'json_payload': data_json}
     r = requests.post("http://localhost:5179/api/ticket", json=createTicket) # создается тикет
     addMessage = {
-        "sender": "Client",
-        #"text": request_description,
-        "text": ChatData[chat_id]['requestData']['request_text'],
-        "timestamp": datetime.datetime.now().strftime("%d.%m.%Y"),
-        "ticketId": r.text
+        "ticketId": r.text,
+        "text": user['requestData']['request_text'],
+        "sender": {
+            "name": user['userData']['name'],
+            "type": 0
+        },
+        "timestamp": datetime.datetime.now().strftime("%d.%m.%Y")
     }
     user_by_ticket[int(r.text)] = chat_id
-    r = requests.post("http://localhost:5179/api/ticket/message", json=addMessage)# добавляю сообщение в тикет
-
-
-# bot.polling(none_stop=True)  # чтобы программа не заканчивала работу
-
-
-
-
-# "id": 1,
-    # "name": "Не работает оплата СБП",
-    # "user": {
-    #     "name": "",
-    #     "phone": "+79000000000"
-    # },
-    # "employee": {
-    #     "department": "CALLCENTER",
-    #     "name": "Иванов Иван Иванович"
-    # },
-    # "messages": [
-    #     {
-    #         "sender": "CLIENT",
-    #         "name": "+79000000000",
-    #         "text": "Здравствуйте, у меня не работает оплата по СБП в магазине",
-    #         "date": "11-02-2023 21:30"
-    #     },
+    r = requests.post("http://localhost:5179/api/message/add", json=addMessage)# добавляю сообщение в тикет
 
 
 # ------ zabota_client ---------
 # host_name = "localhost"
 # server_port = 8080
-
 
 user_by_ticket = {} # пишу свой словарь
 server = Flask(__name__)
@@ -249,6 +236,7 @@ def processUpdate(): #  TODO dict localhost:5000
 #     "text": "нереальный текст"
 #   }
 # }
+
 
 def bot_polling():
     bot.infinity_polling()
